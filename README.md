@@ -1,6 +1,6 @@
 # vbs
 
-## ini.vbs
+## lib/ini.vbs
 ```vbs
 Set ini = new IniFile
 ini.Open "test.ini"
@@ -31,4 +31,21 @@ Next
 ' To save in new file:
 ' Write "newfile.ini"
 ini.Write 0
+```
+
+## lib/csc.vbs
+```vbs
+' All are string, or null
+Dim OutputFileName, Target, Icon
+OutputFileName = Null : Target = Null : Icon = Null
+Set csc = new CSharpCompiler
+' Add needed references
+csc.Reference = "System.dll,Microsoft.VisualBasic.dll,System.Net.dll"
+' Get result
+Dim result: result = csc.GetCompilerResult(OutputFileName, Target, Icon)
+If 0 <> Len(result) Then
+	Msgbox result
+Else
+	Msgbox "Success"
+End If
 ```
