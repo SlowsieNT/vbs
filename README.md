@@ -1,4 +1,6 @@
 # vbs
+This is free and unencumbered software released into the public domain.
+Alternate license: 0-BSD
 
 ## lib/ini.vbs
 ```vbs
