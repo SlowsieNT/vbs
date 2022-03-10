@@ -1,5 +1,5 @@
 ' License: 0-BSD, or Unlicense
-' No copyright claims
+' No copyright
 Class IniFile
 	Private m_Debug
 	Private m_IniBuffer, m_IniLines, m_ReadFilesize, m_Filename
