@@ -114,7 +114,6 @@ Class IniFile
 							Exit For
 						ElseIf "=" = vChar Then
 							vIniLine(1) = vBufferQ
-							'm_Debug=1
 							If 0 = Len(vIniLine(1)) Then vIniLine(1)=null
 							vBufferQ = ""
 						ElseIf 0 = vIQ Then
