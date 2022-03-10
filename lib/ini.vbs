@@ -1,6 +1,7 @@
-' License: Unlicense, or 0-BSD
+' License: 0-BSD, or Unlicense
 ' No copyright claims
 Class IniFile
+	Private m_Debug
 	Private m_IniBuffer, m_IniLines, m_ReadFilesize, m_Filename
 	Public Sub Open(aFilename)
 		m_Filename = aFilename
@@ -72,16 +73,12 @@ Class IniFile
 		Dim vSection : vSection = ""
 		Dim vItemCount : vItemCount = UBound(vLines)
 		Dim vItems : vItems = Array()
+		Dim vSQ, vDQ: vDQ = Chr(34) : vSQ = "'"
 		For vI = 0 To UBound(vLines)
 			Dim vLine : vLine = vLines(vI)
-			Dim vComment : vComment = IndexOf(vLine, ";", 0, 0)
 			Dim vIniLine : vIniLine = Array("","","","","",0)
 			Dim vCanAdd : vCanAdd = 1
 			'0=m_Section, 1=m_Key, 2=m_Value, 3=m_Line, 4=m_Comment
-			If -1 <> vComment Then
-				vIniLine(4) = Mid(vLine, 1+vComment)
-				vLine = Mid(vLine, 1, -1+vComment)
-			End If
 			vIniLine(3) = vLine
 			Dim vBracket : vBracket = IndexOf(vLine, "[", 0, 0)
 			Dim vBracket2 : vBracket2 = IndexOf(vLine, "]", 0, 0)
@@ -90,16 +87,50 @@ Class IniFile
 				vCanAdd = 0
 				PreserveAdd vItems, Array(vSection,"","",Mid(vLine, 1+vBracket2),vIniLine(4),1)
 			Else
-				' if not section name, parse parts
-				Dim vParts : vParts = IndexOf(vLine, "=", 0, 0)
-				If -1 <> vParts Then
-					vIniLine(1) = Mid(vLine, 1, -1+vParts)
-					vIniLine(2) = Mid(vLine, 1+vParts)
-				End If
-				vIniLine(0)=vSection
+				' If not section name, parse quoted string
+				Dim vInQuote: vInQuote = 0
+				Dim vCommentPos: vCommentPos = -1
+				Dim vBufferQ: vBufferQ = ""
+				' vSQ, vDQ
+				For vI2 = 1 To Len(vLine)
+					Dim vChar: vChar = Mid(vLine, vI2, 1)
+					Dim vIQ: vIQ = 0
+					' Detect both quote types
+					If vChar = vSQ Then vIQ = 1
+					If vChar = vDQ Then vIQ = 2
+					' vInQuote
+					If 0 <> vInQuote Then
+						' if same then ignore char
+						If vIQ <> vInQuote Then
+							vBufferQ = vBufferQ & vChar
+						Else
+							vInQuote = 0
+						End If
+					Else
+						vInQuote = vIQ
+						If ";" = vChar Then
+							vCommentPos = vI2
+							If 0 = Len(vIniLine(1)) Then vIniLine(1) = vBufferQ
+							Exit For
+						ElseIf "=" = vChar Then
+							vIniLine(1) = vBufferQ
+							'm_Debug=1
+							If 0 = Len(vIniLine(1)) Then vIniLine(1)=null
+							vBufferQ = ""
+						ElseIf 0 = vIQ Then
+							vBufferQ = vBufferQ & vChar
+						End If
+					End If
+				Next
+				' Handle regular string
+				'0=m_Section, 1=m_Key, 2=m_Value, 3=m_Line, 4=m_Comment
+				If -1 <> vCommentPos Then vIniLine(4) = Mid(vLine, 1 + vCommentPos)
+				' Assign value
+				vIniLine(2) = vBufferQ
+				' Assign section
+				vIniLine(0) = vSection
 			End If
 			If vCanAdd Then PreserveAdd vItems, vIniLine
-			'vItems(vI) = vIniLine
 		Next
 		m_IniLines = vItems
 	End Sub
@@ -124,7 +155,6 @@ Class IniFile
 		Next
 		GetLinesBySection = vArr
 	End Function
-
 	' aFilename optional, use 0, "", False, or Nothing as argument to default to m_Filename
 	Public Sub Write(aFilename)
 		Dim vOutput : vOutput = Array()
@@ -144,22 +174,40 @@ Class IniFile
 			End If
 			For vI2 = 0 To UBound(vSItems)
 				Dim vILine : vILine = vSItems(vI2)
-				If "" <> Trim(vILine(1)) Then
-					Dim vStr : vStr = vILine(1) & "=" & vILine(2)
+				Dim vStr: vStr = ""
+				' vILine (0=m_Section, 1=m_Key, 2=m_Value, 3=m_Line, 4=m_Comment)
+				If "" <> vILine(1) Then
+					vStr = vILine(1) & "=" & WrapValue(vILine(2))
 					If "" <> vILine(4) Then vStr = vStr & ";" & vILine(4)
 					PreserveAdd vOutput, vStr
 				Else
-					vStr = vILine(3)
-					If vILine(5) Then vStr = ""
-					If 0 = vILine(5) And "" <> vILine(4) Then vStr = vStr & ";" & vILine(4)
+					If "" <> Trim(vILine(2)) Then vStr = "=" & WrapValue(vILine(2))
+					If "" <> vILine(4) Then vStr = vStr & ";" & vILine(4)
 					If "" <> vStr Then PreserveAdd vOutput, vStr
 				End If
 			Next
 		Next
-		WriteFileUTF8 vFilename, join(vOutput, vbNewLine)
+		If m_Debug Then
+			MsgBox join(vOutput, vbNewLine)
+		Else
+			WriteFileUTF8 vFilename, join(vOutput, vbNewLine)
+		End If
 	End Sub
-	' standalone functions:
-	
+
+	' Standalone functions:
+	Public Function WrapValue(aString)
+		Dim vRet: vRet = ""
+		Dim vSQ, vDQ: vDQ = Chr(34) : vSQ = "'"
+		For vI2 = 1 To Len(aString)
+			Dim vChar: vChar = Mid(aString, vI2, 1)
+			If "=" = vChar Then vChar = "'='"
+			If ";" = vChar Then vChar = "';'"
+			If vDQ = vChar Then vChar = "'" & vDQ & "'"
+			If vSQ = vChar Then vChar = vDQ & vSQ & vDQ
+			vRet = vRet & vChar
+		Next
+		WrapValue = vRet
+	End Function
 	Sub PreserveAdd(ByRef aArray, ByVal aValue)
 		Dim vUB
 		If IsArray(aArray) Then
@@ -170,15 +218,14 @@ Class IniFile
 			aArray(UBound(aArray)) = aValue
 		End If
 	End Sub
-
 	Public Function IndexOf(aHaystack, aNeedle, aUseLCase, aStartIndex)
-		Dim vNeedleLen : vNeedleLen = Len(aNeedle)
-		Dim vLCasedN, vIBLen : vIBLen = Len(aHaystack)
+		Dim vNeedleLen: vNeedleLen = Len(aNeedle)
+		Dim vLCasedN, vIBLen: vIBLen = Len(aHaystack)
 		If aUseLCase Then vLCasedN = LCase(aNeedle)
 		If aStartIndex < 1 Then aStartIndex = 1
 		IndexOf = -1
 		For vI = aStartIndex To vIBLen
-			Dim vPiece : vPiece = Mid(aHaystack, vI, vNeedleLen)
+			Dim vPiece: vPiece = Mid(aHaystack, vI, vNeedleLen)
 			If aUseLCase Then
 				If LCase(vPiece) = vLCasedN Then
 					IndexOf = vI
@@ -192,7 +239,6 @@ Class IniFile
 			End If
 		Next
 	End function
-
 	Function ReadFileUTF8(aFilename)
 		On Error Resume Next
 		Set vStream = CreateObject("ADODB.Stream")
@@ -200,11 +246,11 @@ Class IniFile
 		vStream.LoadFromFile(aFilename)
 		ReadFileUTF8 = vStream.ReadText()
 	End Function
-
 	Function WriteFileUTF8(aFilename, aData)
 		On Error Resume Next
 		Set vStream = CreateObject("ADODB.Stream")
 		vStream.CharSet = "utf-8" : vStream.Open
 		vStream.WriteText aData : vStream.SaveToFile aFilename, 2
 	End Function
+
 End Class
