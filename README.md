@@ -1,6 +1,3 @@
-# vbs
-License: 0-BSD<br>
-
 ## lib/ini.vbs
 ```vbs
 Set ini = new IniFile
